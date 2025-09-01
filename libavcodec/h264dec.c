@@ -845,6 +845,45 @@ static int output_frame(H264Context *h, AVFrame *dst, H264Picture *srcp)
             goto fail;
     }
 
+    if (h->avctx->export_side_data & AV_CODEC_EXPORT_DATA_QP_PROPERTY) {
+        struct qp_properties {
+            int stride;
+            int type;
+        };
+        AVFrameSideData *sd;
+        struct qp_properties qp_info = {srcp->mb_stride, 0};
+        av_log(h->avctx, AV_LOG_DEBUG, "Adding qp info to frame, stride=%d, type=%d\n", qp_info.stride, qp_info.type);
+        sd = av_frame_new_side_data(dst, AV_FRAME_DATA_QP_TABLE_PROPERTIES, sizeof(struct qp_properties));
+            if (!sd)  goto fail;
+            memcpy(sd->data, &qp_info, sizeof(struct qp_properties));
+    }
+
+    if ((h->avctx->export_side_data & AV_CODEC_EXPORT_DATA_QP_TABLE) && srcp->qscale_table) {
+        const int big_mb_num    = h->mb_stride * (h->mb_height + 1) + 1;
+        const int total_mb_num  = big_mb_num + h->mb_stride;
+        if (srcp->mb_height && srcp->mb_width && srcp->mb_stride) {
+            AVFrameSideData *sd;
+            av_log(h->avctx, AV_LOG_DEBUG, "Adding %d qp table to frame %d\n", total_mb_num, h->avctx->frame_number);
+            sd = av_frame_new_side_data(dst, AV_FRAME_DATA_QP_TABLE_DATA, total_mb_num * sizeof(int8_t));
+            if (!sd) goto fail;
+
+            memcpy(sd->data, srcp->qscale_table, total_mb_num * sizeof(int8_t));
+        }
+    }
+
+    if ((h->avctx->export_side_data & AV_CODEC_EXPORT_DATA_BLK_TYPE) && srcp->mb_type) {
+        const int big_mb_num    = h->mb_stride * (h->mb_height + 1) + 1;
+        const int total_mb_num  = big_mb_num + h->mb_stride;
+        if (srcp->mb_height && srcp->mb_width && srcp->mb_stride) {
+            AVFrameSideData *sd;
+            av_log(h->avctx, AV_LOG_DEBUG, "Adding %d blk type to frame %d\n", total_mb_num, h->avctx->frame_number);
+            sd = av_frame_new_side_data(dst, AV_FRAME_DATA_BLK_TYPE, total_mb_num * sizeof(uint32_t));
+            if (!sd) goto fail;
+
+            memcpy(sd->data, srcp->mb_type, total_mb_num * sizeof(uint32_t));
+        }
+    }
+
     return 0;
 fail:
     av_frame_unref(dst);

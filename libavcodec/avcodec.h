@@ -387,6 +387,13 @@ typedef struct RcOverride{
  */
 #define AV_CODEC_FLAG2_RO_FLUSH_NOOP  (1 << 30)
 
+#define AV_CODEC_FLAG3_EXPORT_MVS     (1 << 0)
+
+#define AV_CODEC_FLAG3_EXPORT_QP_PROPERTY (1 << 1)
+
+#define AV_CODEC_FLAG3_EXPORT_QP_TABLE (1 << 2)
+
+#define AV_CODEC_FLAG3_EXPORT_BLK_TYPE (1 << 3)
 /* Unsupported options :
  *              Syntax Arithmetic coding (SAC)
  *              Reference Picture Selection
@@ -416,6 +423,11 @@ typedef struct RcOverride{
  */
 #define AV_CODEC_EXPORT_DATA_FILM_GRAIN (1 << 3)
 
+#define AV_CODEC_EXPORT_DATA_QP_PROPERTY   (1 << 4)
+
+#define AV_CODEC_EXPORT_DATA_QP_TABLE      (1 << 5)
+
+#define AV_CODEC_EXPORT_DATA_BLK_TYPE      (1 << 6)
 /**
  * Pan Scan area.
  * This specifies the area which should be displayed.
@@ -621,6 +633,13 @@ typedef struct AVCodecContext {
      * - decoding: Set by user.
      */
     int flags2;
+
+    /**
+     * AV_CODEC_FLAG3_*
+     * - encoding: Set by user.
+     * - decoding: Set by user.
+     */
+    int flags3;
 
     /**
      * some codecs need / can use extradata like Huffman tables.

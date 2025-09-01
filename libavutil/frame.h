@@ -198,6 +198,8 @@ enum AVFrameSideDataType {
      * Must be present for every frame which should have film grain applied.
      */
     AV_FRAME_DATA_FILM_GRAIN_PARAMS,
+
+    AV_FRAME_DATA_BLK_TYPE,
 };
 
 enum AVActiveFormatDescription {

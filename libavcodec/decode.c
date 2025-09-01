@@ -2048,9 +2048,15 @@ FF_ENABLE_DEPRECATION_WARNINGS
         && avctx->codec_descriptor->type == AVMEDIA_TYPE_VIDEO)
         av_log(avctx, AV_LOG_WARNING,
                "gray decoding requested but not enabled at configuration time\n");
-    if (avctx->flags2 & AV_CODEC_FLAG2_EXPORT_MVS) {
+    if ((avctx->flags3 & AV_CODEC_FLAG3_EXPORT_MVS) || (avctx->flags2 & AV_CODEC_FLAG2_EXPORT_MVS)) {
         avctx->export_side_data |= AV_CODEC_EXPORT_DATA_MVS;
     }
+    if (avctx->flags3 & AV_CODEC_FLAG3_EXPORT_QP_PROPERTY)
+        avctx->export_side_data |= AV_CODEC_EXPORT_DATA_QP_PROPERTY;
+    if (avctx->flags3 & AV_CODEC_FLAG3_EXPORT_QP_TABLE)
+        avctx->export_side_data |= AV_CODEC_EXPORT_DATA_QP_TABLE;
+    if (avctx->flags3 & AV_CODEC_FLAG3_EXPORT_BLK_TYPE)
+        avctx->export_side_data |= AV_CODEC_EXPORT_DATA_BLK_TYPE;
 
     ret = decode_bsfs_init(avctx);
     if (ret < 0)
