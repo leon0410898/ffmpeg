@@ -394,6 +394,8 @@ typedef struct RcOverride{
 #define AV_CODEC_FLAG3_EXPORT_QP_TABLE (1 << 2)
 
 #define AV_CODEC_FLAG3_EXPORT_BLK_TYPE (1 << 3)
+
+#define AV_CODEC_FLAG3_EXPORT_RES_SIZE (1 << 4)
 /* Unsupported options :
  *              Syntax Arithmetic coding (SAC)
  *              Reference Picture Selection
@@ -428,6 +430,8 @@ typedef struct RcOverride{
 #define AV_CODEC_EXPORT_DATA_QP_TABLE      (1 << 5)
 
 #define AV_CODEC_EXPORT_DATA_BLK_TYPE      (1 << 6)
+
+#define AV_CODEC_EXPORT_DATA_RES_SIZE      (1 << 7)
 /**
  * Pan Scan area.
  * This specifies the area which should be displayed.

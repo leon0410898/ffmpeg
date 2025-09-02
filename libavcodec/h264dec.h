@@ -139,6 +139,9 @@ typedef struct H264Picture {
     AVBufferRef *mb_type_buf;
     uint32_t *mb_type;
 
+    AVBufferRef *res_bit_buf;
+    uint16_t *res_bit;
+
     AVBufferRef *hwaccel_priv_buf;
     void *hwaccel_picture_private; ///< hardware accelerator private data
 
@@ -336,6 +339,7 @@ typedef struct H264SliceContext {
     int delta_poc[2];
     int curr_pic_num;
     int max_pic_num;
+    int mb_res_bit;
 } H264SliceContext;
 
 /**
@@ -557,6 +561,7 @@ typedef struct H264Context {
     AVBufferPool *mb_type_pool;
     AVBufferPool *motion_val_pool;
     AVBufferPool *ref_index_pool;
+    AVBufferPool *res_bit_pool;
     int ref2frm[MAX_SLICES][2][64];     ///< reference to frame number lists, used in the loop filter, the first 2 are for -2,-1
 } H264Context;
 

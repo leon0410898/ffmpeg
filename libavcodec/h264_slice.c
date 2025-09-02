@@ -171,13 +171,17 @@ static int init_table_pools(H264Context *h)
     h->motion_val_pool   = av_buffer_pool_init(2 * (b4_array_size + 4) *
                                                sizeof(int16_t), av_buffer_allocz);
     h->ref_index_pool    = av_buffer_pool_init(4 * mb_array_size, av_buffer_allocz);
+    h->res_bit_pool      = av_buffer_pool_init((big_mb_num + h->mb_stride) *
+                                               sizeof(uint16_t), av_buffer_allocz);
+
 
     if (!h->qscale_table_pool || !h->mb_type_pool || !h->motion_val_pool ||
-        !h->ref_index_pool) {
+        !h->ref_index_pool || !h->res_bit_pool) {
         av_buffer_pool_uninit(&h->qscale_table_pool);
         av_buffer_pool_uninit(&h->mb_type_pool);
         av_buffer_pool_uninit(&h->motion_val_pool);
         av_buffer_pool_uninit(&h->ref_index_pool);
+        av_buffer_pool_uninit(&h->res_bit_pool);
         return AVERROR(ENOMEM);
     }
 
@@ -227,11 +231,13 @@ static int alloc_picture(H264Context *h, H264Picture *pic)
 
     pic->qscale_table_buf = av_buffer_pool_get(h->qscale_table_pool);
     pic->mb_type_buf      = av_buffer_pool_get(h->mb_type_pool);
-    if (!pic->qscale_table_buf || !pic->mb_type_buf)
+    pic->res_bit_buf      = av_buffer_pool_get(h->res_bit_pool);
+    if (!pic->qscale_table_buf || !pic->mb_type_buf || !pic->res_bit_buf)
         goto fail;
 
     pic->mb_type      = (uint32_t*)pic->mb_type_buf->data + 2 * h->mb_stride + 1;
     pic->qscale_table = pic->qscale_table_buf->data + 2 * h->mb_stride + 1;
+    pic->res_bit      = (uint16_t*)pic->res_bit_buf->data + 2 * h->mb_stride + 1;
 
     for (i = 0; i < 2; i++) {
         pic->motion_val_buf[i] = av_buffer_pool_get(h->motion_val_pool);

@@ -45,6 +45,12 @@
 #include "x86/h264_cabac.c"
 #endif
 
+#define CAL_CABAC_BITS_BEGIN(sl) const uint8_t *__cabac_bs0 = (sl)->cabac.bytestream
+#define CAL_CABAC_BITS_END(sl) \
+    do { ptrdiff_t __bytes = (sl)->cabac.bytestream - __cabac_bs0; \
+         if (__bytes > 0) (sl)->mb_res_bit += (int)(__bytes * 8); \
+    } while (0)
+
 /* Cabac pre state table */
 
 static const int8_t cabac_context_init_I[1024][2] =
@@ -1919,6 +1925,10 @@ int ff_h264_decode_mb_cabac(const H264Context *h, H264SliceContext *sl)
 
     mb_xy = sl->mb_xy = sl->mb_x + sl->mb_y*h->mb_stride;
 
+    sl->mb_res_bit = 0;
+    h->cur_pic.res_bit[mb_xy] = 0;
+    CAL_CABAC_BITS_BEGIN(sl);
+
     ff_tlog(h->avctx, "pic:%d mb:%d/%d\n", h->poc.frame_num, sl->mb_x, sl->mb_y);
     if (sl->slice_type_nos != AV_PICTURE_TYPE_I) {
         int skip;
@@ -1941,6 +1951,9 @@ int ff_h264_decode_mb_cabac(const H264Context *h, H264SliceContext *sl)
             h->cbp_table[mb_xy] = 0;
             h->chroma_pred_mode_table[mb_xy] = 0;
             sl->last_qscale_diff = 0;
+
+            CAL_CABAC_BITS_END(sl);
+            h->cur_pic.res_bit[mb_xy] = sl->mb_res_bit;
 
             return 0;
 
@@ -2057,6 +2070,10 @@ decode_intra_mb:
         memset(h->non_zero_count[mb_xy], 16, 48);
         h->cur_pic.mb_type[mb_xy] = mb_type;
         sl->last_qscale_diff = 0;
+
+        CAL_CABAC_BITS_END(sl);
+        h->cur_pic.res_bit[mb_xy] = sl->mb_res_bit;
+
         return 0;
     }
 
@@ -2482,7 +2499,8 @@ decode_intra_mb:
         fill_rectangle(&sl->non_zero_count_cache[scan8[32]], 4, 4, 8, 0, 1);
         sl->last_qscale_diff = 0;
     }
-
+    CAL_CABAC_BITS_END(sl);
+    h->cur_pic.res_bit[mb_xy] = sl->mb_res_bit;
     h->cur_pic.qscale_table[mb_xy] = sl->qscale;
     write_back_non_zero_count(h, sl);
 

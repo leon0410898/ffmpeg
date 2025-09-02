@@ -200,6 +200,8 @@ enum AVFrameSideDataType {
     AV_FRAME_DATA_FILM_GRAIN_PARAMS,
 
     AV_FRAME_DATA_BLK_TYPE,
+
+    AV_FRAME_DATA_RES_SIZE,
 };
 
 enum AVActiveFormatDescription {

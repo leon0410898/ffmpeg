@@ -157,6 +157,7 @@ void ff_h264_free_tables(H264Context *h)
     av_buffer_pool_uninit(&h->mb_type_pool);
     av_buffer_pool_uninit(&h->motion_val_pool);
     av_buffer_pool_uninit(&h->ref_index_pool);
+    av_buffer_pool_uninit(&h->res_bit_pool);
 
     for (i = 0; i < h->nb_slice_ctx; i++) {
         H264SliceContext *sl = &h->slice_ctx[i];
@@ -863,7 +864,7 @@ static int output_frame(H264Context *h, AVFrame *dst, H264Picture *srcp)
         const int total_mb_num  = big_mb_num + h->mb_stride;
         if (srcp->mb_height && srcp->mb_width && srcp->mb_stride) {
             AVFrameSideData *sd;
-            av_log(h->avctx, AV_LOG_DEBUG, "Adding %d qp table to frame %d\n", total_mb_num, h->avctx->frame_number);
+            av_log(h->avctx, AV_LOG_DEBUG, "Adding qp mb_num=%d table to frame %d\n", total_mb_num, h->avctx->frame_number);
             sd = av_frame_new_side_data(dst, AV_FRAME_DATA_QP_TABLE_DATA, total_mb_num * sizeof(int8_t));
             if (!sd) goto fail;
 
@@ -876,11 +877,38 @@ static int output_frame(H264Context *h, AVFrame *dst, H264Picture *srcp)
         const int total_mb_num  = big_mb_num + h->mb_stride;
         if (srcp->mb_height && srcp->mb_width && srcp->mb_stride) {
             AVFrameSideData *sd;
-            av_log(h->avctx, AV_LOG_DEBUG, "Adding %d blk type to frame %d\n", total_mb_num, h->avctx->frame_number);
+            av_log(h->avctx, AV_LOG_DEBUG, "Adding blk type mb_num=%d to frame %d\n", total_mb_num, h->avctx->frame_number);
             sd = av_frame_new_side_data(dst, AV_FRAME_DATA_BLK_TYPE, total_mb_num * sizeof(uint32_t));
             if (!sd) goto fail;
 
             memcpy(sd->data, srcp->mb_type, total_mb_num * sizeof(uint32_t));
+        }
+    }
+
+    if ((h->avctx->export_side_data & AV_CODEC_EXPORT_DATA_RES_SIZE) && srcp->res_bit) {
+        typedef struct FFResidualHdr {
+            uint32_t tag;        // 'R''S''M''0' = 0x52534D30
+            uint16_t mb_w, mb_h; 
+            uint8_t  unit;       
+            uint8_t  block_px;   // 16 (MB 邊長像素)
+        } FFResidualHdr;
+
+        const int big_mb_num    = h->mb_stride * (h->mb_height + 1) + 1;
+        const int total_mb_num  = big_mb_num + h->mb_stride;
+
+        if (srcp->mb_height && srcp->mb_width && srcp->mb_stride) {
+            AVFrameSideData *sd;
+            av_log(h->avctx, AV_LOG_DEBUG, "Adding res size mb_num=%d to frame %d\n", total_mb_num, h->avctx->frame_number);
+            sd = av_frame_new_side_data(dst, AV_FRAME_DATA_RES_SIZE, sizeof(FFResidualHdr) + total_mb_num * sizeof(uint16_t));
+            if (!sd) return AVERROR(ENOMEM);
+
+            FFResidualHdr *hdr = (FFResidualHdr*)(sd->data);
+            hdr->tag      = AV_RL32("RSM0");
+            hdr->mb_w     = h->mb_width;
+            hdr->mb_h     = h->mb_height;
+            hdr->unit     = 0;    // coeff-count
+            hdr->block_px = 16;
+            memcpy(hdr + 1, srcp->res_bit, total_mb_num * sizeof(uint16_t));
         }
     }
 

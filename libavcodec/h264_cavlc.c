@@ -280,6 +280,12 @@ static int8_t cavlc_level_tab[7][1<<LEVEL_TAB_BITS][2];
 #define RUN_VLC_BITS                   3
 #define RUN7_VLC_BITS                  6
 
+#define CAL_CAVLC_BITS_BEGIN(sl) int __cavlc_bits0 = get_bits_count(&(sl)->gb)
+#define CAL_CAVLC_BITS_END(sl) \
+    do { int __cavlc_bits1 = get_bits_count(&(sl)->gb); \
+         (sl)->mb_res_bit += (__cavlc_bits1 - __cavlc_bits0); \
+    } while (0)
+
 /**
  * Get the predicted number of non-zero coefficients.
  * @param n block index
@@ -705,6 +711,10 @@ int ff_h264_decode_mb_cavlc(const H264Context *h, H264SliceContext *sl)
 
     mb_xy = sl->mb_xy = sl->mb_x + sl->mb_y*h->mb_stride;
 
+    sl->mb_res_bit = 0;
+    h->cur_pic.res_bit[mb_xy] = 0;
+    CAL_CAVLC_BITS_BEGIN(sl);
+
     ff_tlog(h->avctx, "pic:%d mb:%d/%d\n", h->poc.frame_num, sl->mb_x, sl->mb_y);
     cbp = 0; /* avoid warning. FIXME: find a solution without slowing
                 down the code */
@@ -724,6 +734,10 @@ int ff_h264_decode_mb_cavlc(const H264Context *h, H264SliceContext *sl)
                     sl->mb_mbaff = sl->mb_field_decoding_flag = get_bits1(&sl->gb);
             }
             decode_mb_skip(h, sl);
+
+            CAL_CAVLC_BITS_END(sl);
+            h->cur_pic.res_bit[mb_xy] = sl->mb_res_bit;
+
             return 0;
         }
     }
@@ -789,6 +803,10 @@ decode_intra_mb:
         memset(h->non_zero_count[mb_xy], 16, 48);
 
         h->cur_pic.mb_type[mb_xy] = mb_type;
+
+        CAL_CAVLC_BITS_END(sl);
+        h->cur_pic.res_bit[mb_xy] = sl->mb_res_bit;
+
         return 0;
     }
 
@@ -1175,6 +1193,9 @@ decode_intra_mb:
         fill_rectangle(&sl->non_zero_count_cache[scan8[16]], 4, 4, 8, 0, 1);
         fill_rectangle(&sl->non_zero_count_cache[scan8[32]], 4, 4, 8, 0, 1);
     }
+
+    CAL_CAVLC_BITS_END(sl);
+    h->cur_pic.res_bit[mb_xy] = sl->mb_res_bit;
     h->cur_pic.qscale_table[mb_xy] = sl->qscale;
     write_back_non_zero_count(h, sl);
 
