@@ -699,6 +699,11 @@ typedef struct AVFrame {
      * for the target frame's private_ref field.
      */
     AVBufferRef *private_ref;
+
+    /**
+     * Use to fill internel data (HEVCFrame) of the frame.
+     */
+    void *priv_data;
 } AVFrame;
 
 #if FF_API_FRAME_GET_SET

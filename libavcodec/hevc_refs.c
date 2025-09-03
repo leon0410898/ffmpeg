@@ -42,6 +42,9 @@ void ff_hevc_unref_frame(HEVCContext *s, HEVCFrame *frame, int flags)
         av_buffer_unref(&frame->tab_mvf_buf);
         frame->tab_mvf = NULL;
 
+        av_buffer_unref(&frame->qp_tab_buf);
+        frame->qp_tab_buf = NULL;
+    
         av_buffer_unref(&frame->rpl_buf);
         av_buffer_unref(&frame->rpl_tab_buf);
         frame->rpl_tab    = NULL;
@@ -100,6 +103,11 @@ static HEVCFrame *alloc_frame(HEVCContext *s)
         if (!frame->tab_mvf_buf)
             goto fail;
         frame->tab_mvf = (MvField *)frame->tab_mvf_buf->data;
+
+        frame->qp_tab_buf = av_buffer_pool_get(s->qp_tab_pool);
+        if (!frame->qp_tab_buf)
+            goto fail;
+        frame->qp_tab = (int8_t *)frame->qp_tab_buf->data;
 
         frame->rpl_tab_buf = av_buffer_pool_get(s->rpl_tab_pool);
         if (!frame->rpl_tab_buf)
@@ -209,6 +217,9 @@ int ff_hevc_output_frame(HEVCContext *s, AVFrame *out, int flush)
             HEVCFrame *frame = &s->DPB[min_idx];
 
             ret = av_frame_ref(out, frame->frame);
+
+            out->priv_data = frame;
+
             if (frame->flags & HEVC_FRAME_FLAG_BUMPING)
                 ff_hevc_unref_frame(s, frame, HEVC_FRAME_FLAG_OUTPUT | HEVC_FRAME_FLAG_BUMPING);
             else

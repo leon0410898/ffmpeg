@@ -397,6 +397,7 @@ typedef struct HEVCFrame {
     AVFrame *frame;
     ThreadFrame tf;
     MvField *tab_mvf;
+    int8_t *qp_tab;
     RefPicList *refPicList;
     RefPicListTab **rpl_tab;
     int ctb_count;
@@ -406,6 +407,7 @@ typedef struct HEVCFrame {
     AVBufferRef *tab_mvf_buf;
     AVBufferRef *rpl_tab_buf;
     AVBufferRef *rpl_buf;
+    AVBufferRef *qp_tab_buf;
 
     AVBufferRef *hwaccel_priv_buf;
     void *hwaccel_picture_private;
@@ -497,6 +499,7 @@ typedef struct HEVCContext {
 
     AVBufferPool *tab_mvf_pool;
     AVBufferPool *rpl_tab_pool;
+    AVBufferPool *qp_tab_pool;
 
     ///< candidate references for the current frame
     RefPicList rps[5];

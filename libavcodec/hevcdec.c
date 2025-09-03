@@ -82,6 +82,7 @@ static void pic_arrays_free(HEVCContext *s)
 
     av_buffer_pool_uninit(&s->tab_mvf_pool);
     av_buffer_pool_uninit(&s->rpl_tab_pool);
+    av_buffer_pool_uninit(&s->qp_tab_pool);
 }
 
 /* allocate arrays that depend on frame dimensions */
@@ -131,7 +132,9 @@ static int pic_arrays_init(HEVCContext *s, const HEVCSPS *sps)
                                           av_buffer_allocz);
     s->rpl_tab_pool = av_buffer_pool_init(ctb_count * sizeof(RefPicListTab),
                                           av_buffer_allocz);
-    if (!s->tab_mvf_pool || !s->rpl_tab_pool)
+    s->qp_tab_pool  = av_buffer_pool_init(pic_size_in_ctb * sizeof(int8_t),
+                                          av_buffer_allocz);
+    if (!s->tab_mvf_pool || !s->rpl_tab_pool || !s->qp_tab_pool)
         goto fail;
 
     return 0;
@@ -2307,6 +2310,7 @@ static int hls_coding_unit(HEVCContext *s, int x0, int y0, int log2_cb_size)
     x = y_cb * min_cb_width + x_cb;
     for (y = 0; y < length; y++) {
         memset(&s->qp_y_tab[x], lc->qp_y, length);
+        memset(&s->ref->qp_tab[x], lc->qp_y, length);
         x += min_cb_width;
     }
 
@@ -2954,7 +2958,45 @@ fail:
     if (s->ref)
         ff_hevc_unref_frame(s, s->ref, ~0);
     s->ref = NULL;
-    return ret;
+        return ret;
+}
+
+static int output_frame(HEVCContext *s, AVFrame *dst, HEVCFrame *srcp)
+{
+    if (!s || !dst || !srcp)
+        return AVERROR(EINVAL);
+
+    if (1 && srcp->qp_tab) {
+        int log2_min_cb_size = s->ps.sps->log2_min_cb_size;
+        int width            = s->ps.sps->width;
+        int height           = s->ps.sps->height;
+        int pic_size_in_ctb  = ((width  >> log2_min_cb_size) + 1) *
+                               ((height >> log2_min_cb_size) + 1);
+        int total_cuts_in_pic = (width >> log2_min_cb_size) * (height >> log2_min_cb_size);
+        if (pic_size_in_ctb > 0) {
+            typedef struct FFQPTblHdr {
+                uint32_t tag;        // 'Q''T''B''0' = 0x52534D30
+                uint8_t  blk_px;     // blk unit size in pixels
+            } FFQPTblHdr;
+            AVFrameSideData *sd;
+            av_log(s->avctx, AV_LOG_DEBUG, "Adding %d qp table to frame %d blk 0~5: [%d %d %d %d %d], blk -5~-1: [%d %d %d %d %d]\n", 
+                pic_size_in_ctb, s->avctx->frame_number, 
+                srcp->qp_tab[0], srcp->qp_tab[1], srcp->qp_tab[2], srcp->qp_tab[3], srcp->qp_tab[4],
+                srcp->qp_tab[total_cuts_in_pic - 5], srcp->qp_tab[total_cuts_in_pic - 4], 
+                srcp->qp_tab[total_cuts_in_pic - 3], srcp->qp_tab[total_cuts_in_pic - 2], 
+                srcp->qp_tab[total_cuts_in_pic - 1]);
+            sd = av_frame_new_side_data(dst, AV_FRAME_DATA_QP_TABLE_DATA, sizeof(FFQPTblHdr) + pic_size_in_ctb * sizeof(*srcp->qp_tab));
+            if (!sd) return AVERROR(ENOMEM);
+
+            FFQPTblHdr *hdr = (FFQPTblHdr*)(sd->data);
+            hdr->tag        = AV_RL32("QTB0");
+            hdr->blk_px     = 1 << log2_min_cb_size;
+
+            memcpy(hdr + 1, srcp->qp_tab, pic_size_in_ctb * sizeof(*srcp->qp_tab));
+        }
+    }
+
+    return 0;
 }
 
 static int decode_nal_unit(HEVCContext *s, const H2645NAL *nal)
@@ -3119,6 +3161,10 @@ static int decode_nal_unit(HEVCContext *s, const H2645NAL *nal)
                 ctb_addr_ts = hls_slice_data(s);
             if (ctb_addr_ts >= (s->ps.sps->ctb_width * s->ps.sps->ctb_height)) {
                 s->is_decoded = 1;
+
+                // decode done, write out side data to avframe
+                output_frame(s, s->output_frame, (HEVCFrame*)s->output_frame->priv_data);
+                s->output_frame->priv_data = NULL;
             }
 
             if (ctb_addr_ts < 0) {
@@ -3142,7 +3188,7 @@ static int decode_nal_unit(HEVCContext *s, const H2645NAL *nal)
 
     return 0;
 fail:
-    if (s->avctx->err_recognition & AV_EF_EXPLODE)
+        if (s->avctx->err_recognition & AV_EF_EXPLODE)
         return ret;
     return 0;
 }
@@ -3319,6 +3365,9 @@ static int hevc_decode_frame(AVCodecContext *avctx, void *data, int *got_output,
         if (ret < 0)
             return ret;
 
+        output_frame(s, s->output_frame, (HEVCFrame*)s->output_frame->priv_data);
+        s->output_frame->priv_data = NULL;
+
         *got_output = ret;
         return 0;
     }
@@ -3381,6 +3430,11 @@ static int hevc_ref_frame(HEVCContext *s, HEVCFrame *dst, HEVCFrame *src)
     if (!dst->tab_mvf_buf)
         goto fail;
     dst->tab_mvf = src->tab_mvf;
+
+    dst->qp_tab_buf = av_buffer_ref(src->qp_tab_buf);
+    if (!dst->qp_tab_buf)
+        goto fail;
+    dst->qp_tab = src->qp_tab;
 
     dst->rpl_tab_buf = av_buffer_ref(src->rpl_tab_buf);
     if (!dst->rpl_tab_buf)
