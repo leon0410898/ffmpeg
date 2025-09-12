@@ -2057,6 +2057,8 @@ FF_ENABLE_DEPRECATION_WARNINGS
         avctx->export_side_data |= AV_CODEC_EXPORT_DATA_QP_TABLE;
     if (avctx->flags3 & AV_CODEC_FLAG3_EXPORT_BLK_TYPE)
         avctx->export_side_data |= AV_CODEC_EXPORT_DATA_BLK_TYPE;
+    if (avctx->flags3 & AV_CODEC_FLAG3_EXPORT_RES_SIZE)
+        avctx->export_side_data |= AV_CODEC_EXPORT_DATA_RES_SIZE;
 
     ret = decode_bsfs_init(avctx);
     if (ret < 0)
