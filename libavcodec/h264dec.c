@@ -860,15 +860,25 @@ static int output_frame(H264Context *h, AVFrame *dst, H264Picture *srcp)
     }
 
     if ((h->avctx->export_side_data & AV_CODEC_EXPORT_DATA_QP_TABLE) && srcp->qscale_table) {
+        typedef struct FFQPTblHdr {
+            uint32_t tag;        // 'Q''T''B''0' = 0x52534D30
+            uint8_t  blk_px;     // blk unit size in pixels
+        } FFQPTblHdr;
+
         const int big_mb_num    = h->mb_stride * (h->mb_height + 1) + 1;
         const int total_mb_num  = big_mb_num + h->mb_stride;
+
         if (srcp->mb_height && srcp->mb_width && srcp->mb_stride) {
             AVFrameSideData *sd;
             av_log(h->avctx, AV_LOG_DEBUG, "Adding qp mb_num=%d table to frame %d\n", total_mb_num, h->avctx->frame_number);
-            sd = av_frame_new_side_data(dst, AV_FRAME_DATA_QP_TABLE_DATA, total_mb_num * sizeof(int8_t));
+            sd = av_frame_new_side_data(dst, AV_FRAME_DATA_QP_TABLE_DATA, sizeof(FFQPTblHdr) + total_mb_num * sizeof(int8_t));
             if (!sd) goto fail;
 
-            memcpy(sd->data, srcp->qscale_table, total_mb_num * sizeof(int8_t));
+            FFQPTblHdr *hdr = (FFQPTblHdr*)(sd->data);
+            hdr->tag        = AV_RL32("QTB0");
+            hdr->blk_px     = 16;
+
+            memcpy(hdr + 1, srcp->qscale_table, total_mb_num * sizeof(int8_t));
         }
     }
 
